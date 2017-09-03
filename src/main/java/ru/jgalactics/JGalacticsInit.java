@@ -9,11 +9,11 @@ import java.util.concurrent.ForkJoinPool;
 
 public class JGalacticsInit {
     public static void main(String[] args) {
-        int nStars = 10000;
+        int nStars = 1000000;
         a = 0.25;
         M = 1;
         double maxR = 1;
-        int nBeans = 30;
+        int nBeans = 8000;
         double[] nPerBean = new double[nBeans];
 
         double fullArea = intPdf(0, maxR);
@@ -26,15 +26,25 @@ public class JGalacticsInit {
             summ += nPerBean[i];
         }
 
-
-        //catching
-        System.out.println("Starting rendering");
         int[] nPerBeanMax = normalize(nPerBean, nStars);
         int[] nPerBeanCurrent = new int[nBeans];
+        int score = 0;
+        for (int i = 0; i < nBeans; i++) {
+            score += nPerBeanMax[i];
+            if(nPerBeanMax[i] == 0){
+                nBeans = i - 1;
+                System.out.println("Beans used: " + nBeans + "score: " + score);
+                break;
+            }
+        }
+        //catching
+        System.out.println("Starting rendering");
+
         double[][] data = new double[nStars][3];
         Random rnd = new Random(System.currentTimeMillis());
         double x, y, z, r;
-        int generated = 0;
+        int generated = 0, beansImportant = nBeans;
+
         while(generated < nStars){
             x = 2 * rnd.nextDouble() - 1;
             y = 2 * rnd.nextDouble() - 1;
@@ -44,21 +54,38 @@ public class JGalacticsInit {
                 continue;
             }
 
-            int index = (int)(nBeans*r); //0.95
+            int index = (int)(beansImportant*r); //0.95
             if(nPerBeanCurrent[index] < nPerBeanMax[index]){
-                data[generated][0] = x;
-                data[generated][1] = y;
-                data[generated][2] = z;
+                double coef = (double)beansImportant / nBeans;
+                data[generated][0] = x * coef;
+                data[generated][1] = y * coef;
+                data[generated][2] = z * coef;
                 generated++;
                 nPerBeanCurrent[index]++;
-                if(generated % 100 == 0){
-                    System.out.println(generated);
-                }
+
+                    if(nPerBeanCurrent[beansImportant - 1] == nPerBeanMax[beansImportant - 1]){
+                        beansImportant--;
+                    }
+                    //System.out.println(generated + "\t" + beansImportant + "\t" + nPerBeanCurrent[0] + "\t" + nPerBeanMax[0]);
+
             }
         }
-        System.out.println("Rendered");
+        System.out.println("Rendered. Starts checking");
 
-        System.out.println("Staring dumping");
+        nPerBeanCurrent = new int[nBeans];
+        for (int i = 0; i < nStars; i++) {
+            r = Math.sqrt(data[i][0] * data[i][0] + data[i][1] * data[i][1] + data[i][2] * data[i][2]);
+            nPerBeanCurrent[(int)(nBeans*r)]++;
+        }
+
+        for (int i = 0; i < nBeans; i++) {
+            if(nPerBeanCurrent[i] != nPerBeanCurrent[i]){
+                System.out.println("ERROR!!!");
+            }
+        }
+
+
+        System.out.println("Finished checking. Staring dumping");
         //dump
         try(RandomAccessFile rafile = new RandomAccessFile("/home/david/dump.bin", "rw")){
             //write number of columns to first bytes
@@ -126,20 +153,17 @@ public class JGalacticsInit {
 
     static double pdf(double r){
         double coef = 3 * M / ( 4 * Math.PI * Math.pow(a, 3));
+
         return coef * Math.pow(1 + r * r / (a * a), -2.5);
     }
 
     static double intPdf(double start, double finish){
-        int nSteps = 1000000;
-        double rBean = (finish - start) / nSteps;
-        double result = 0;
-        double step = (finish - start) / (nSteps + 1);
-        double current = start + step;
-        for(int i = 0; i < nSteps; i++, current += step){
-            result += pdf(current) * rBean;
-        }
-        return result;
+        return undefInfPdf(finish) - undefInfPdf(start);
     }
 
+    static double undefInfPdf(double r){
+        double coef = 3 * M / ( 4 * Math.PI * Math.pow(a, 3));
+        return coef * 2 * a * r * (r * r + 1.5 * a * a) / (3 * Math.pow(r * r + a * a, 1.5));
+    }
 }
 
